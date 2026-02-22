@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Principal Dashboard / پرنسپل ڈیش بورڈ</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <h1>Principal Dashboard / پرنسپل ڈیش بورڈ</h1>
+            <div class="nav">
+                <button onclick="showSection('dashboard')" class="active">Daily Dashboard / روزانہ ڈیش بورڈ</button>
+                <button onclick="showSection('reports')">Monthly Reports / ماہانہ رپورٹس</button>
+                <button onclick="showSection('student')">Student Report / طالب علم رپورٹ</button>
+                <button onclick="showSection('notifications')">Notifications / اطلاعات</button>
+                <button onclick="handleLogout()">Logout / لاگ آوٹ</button>
+            </div>
+            <p id="error" class="error"></p>
+            <p id="success" class="success"></p>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="section">
+            <h2>Today's Attendance / آج کی حاضری</h2>
+            <div class="stats" id="stats-cards"></div>
+            <h3>Class-wise Summary / کلاس کے لحاظ سے خلاصہ</h3>
+            <table id="dashboard-table">
+                <thead>
+                    <tr>
+                        <th>Class / کلاس</th>
+                        <th>Teacher / استاد</th>
+                        <th>Total / کل</th>
+                        <th>Present / حاضر</th>
+                        <th>Absent / غائب</th>
+                        <th>Late / دیر سے</th>
+                        <th>Status / حیثیت</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Reports Section -->
+        <div id="reports-section" class="section" style="display:none;">
+            <h2>Monthly Attendance Report / ماہانہ حاضری رپورٹ</h2>
+            <div class="form-inline">
+                <div class="form-group">
+                    <label>Year / سال</label>
+                    <input type="number" id="report-year" value="2026" min="2020" max="2030">
+                </div>
+                <div class="form-group">
+                    <label>Month / مہینہ</label>
+                    <select id="report-month">
+                        <option value="1">January / جنوری</option>
+                        <option value="2" selected>February / فروری</option>
+                        <option value="3">March / مارچ</option>
+                        <option value="4">April / اپریل</option>
+                        <option value="5">May / مئی</option>
+                        <option value="6">June / جون</option>
+                        <option value="7">July / جولائی</option>
+                        <option value="8">August / اگست</option>
+                        <option value="9">September / ستمبر</option>
+                        <option value="10">October / اکتوبر</option>
+                        <option value="11">November / نومبر</option>
+                        <option value="12">December / دسمبر</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Class / کلاس (Optional)</label>
+                    <select id="report-class">
+                        <option value="">All Classes / تمام کلاسز</option>
+                    </select>
+                </div>
+                <button onclick="loadMonthlyReport()">View Report / رپورٹ دیکھیں</button>
+                <button onclick="downloadExcelReport()">Download Excel / ایکسل ڈاؤنلوڈ کریں</button>
+            </div>
+            <div id="report-content"></div>
+        </div>
+
+        <!-- Student Report Section -->
+        <div id="student-section" class="section" style="display:none;">
+            <h2>Student-wise Report / طالب علم کی رپورٹ</h2>
+            <div class="form-inline">
+                <div class="form-group">
+                    <label>Select Student / طالب علم منتخب کریں</label>
+                    <select id="student-select">
+                        <option value="">Select / منتخب کریں</option>
+                    </select>
+                </div>
+                <button onclick="loadStudentReport()">View Report / رپورٹ دیکھیں</button>
+            </div>
+            <div id="student-report-content"></div>
+        </div>
+
+        <!-- Notifications Section -->
+        <div id="notifications-section" class="section" style="display:none;">
+            <h2>Parent Notifications / والدین کی اطلاعات</h2>
+            <div class="form-inline">
+                <div class="form-group">
+                    <label>Filter / فلٹر</label>
+                    <select id="notification-filter" onchange="loadNotifications()">
+                        <option value="">All / تمام</option>
+                        <option value="pending">Pending / زیر التوا</option>
+                        <option value="sent">Sent / بھیجی گئی</option>
+                    </select>
+                </div>
+            </div>
+            <table id="notifications-table">
+                <thead>
+                    <tr>
+                        <th>Date / تاریخ</th>
+                        <th>Student / طالب علم</th>
+                        <th>Class / کلاس</th>
+                        <th>Status / حیثیت</th>
+                        <th>Action / عمل</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        let currentSection = 'dashboard';
+        let classesData = [];
+        let studentsData = [];
+
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById(`${section}-section`).style.display = 'block';
+            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            currentSection = section;
+
+            if (section === 'dashboard') loadDashboard();
+            else if (section === 'reports') loadReportsPage();
+            else if (section === 'student') loadStudentPage();
+            else if (section === 'notifications') loadNotifications();
+        }
+
+        async function loadDashboard() {
+            try {
+                const data = await getDashboard();
+
+                // Render stats cards
+                const statsDiv = document.getElementById('stats-cards');
+                statsDiv.innerHTML = `
+                    <div class="stat-card">
+                        <h3>${data.stats.total_students}</h3>
+                        <p>Total Students / کل طلباء</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${data.stats.present_count}</h3>
+                        <p>Present / حاضر</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${data.stats.absent_count}</h3>
+                        <p>Absent / غائب</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${data.stats.late_count}</h3>
+                        <p>Late / دیر سے</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${data.stats.percentage}%</h3>
+                        <p>Attendance / حاضری</p>
+                    </div>
+                `;
+
+                // Render class table
+                const tbody = document.querySelector('#dashboard-table tbody');
+                tbody.innerHTML = data.classes.map(c => {
+                    const rowClass = !c.attendance_submitted ? 'highlight-danger' : '';
+                    const statusText = c.attendance_submitted ? '✓ Submitted / جمع کرایا' : '✗ Not Submitted / جمع نہیں';
+                    return `
+                        <tr class="${rowClass}">
+                            <td>${c.class_name}</td>
+                            <td>${c.teacher_name || 'N/A'}</td>
+                            <td>${c.total_students}</td>
+                            <td>${c.present_count}</td>
+                            <td>${c.absent_count}</td>
+                            <td>${c.late_count}</td>
+                            <td>${statusText}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadReportsPage() {
+            try {
+                classesData = await getClasses();
+                const select = document.getElementById('report-class');
+                select.innerHTML = '<option value="">All Classes / تمام کلاسز</option>' +
+                    classesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadMonthlyReport() {
+            clearMessages();
+            const year = parseInt(document.getElementById('report-year').value);
+            const month = parseInt(document.getElementById('report-month').value);
+            const classId = document.getElementById('report-class').value || null;
+
+            try {
+                const data = await getMonthlyReport(year, month, classId);
+                const reportDiv = document.getElementById('report-content');
+
+                if (!data.students || data.students.length === 0) {
+                    reportDiv.innerHTML = '<p>No data available / کوئی ڈیٹا دستیاب نہیں</p>';
+                    return;
+                }
+
+                reportDiv.innerHTML = `
+                    <h3>Report for ${month}/${year}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Roll No / رول نمبر</th>
+                                <th>Name / نام</th>
+                                <th>Total Present / کل حاضر</th>
+                                <th>Total Absent / کل غائب</th>
+                                <th>Percentage / فیصدہ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.students.map(s => `
+                                <tr>
+                                    <td>${s.roll_no}</td>
+                                    <td>${s.name_en}</td>
+                                    <td>${s.total_present}</td>
+                                    <td>${s.total_absent}</td>
+                                    <td>${s.percentage}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function downloadExcelReport() {
+            const year = parseInt(document.getElementById('report-year').value);
+            const month = parseInt(document.getElementById('report-month').value);
+            const classId = document.getElementById('report-class').value || null;
+            downloadExcel(year, month, classId);
+        }
+
+        async function loadStudentPage() {
+            try {
+                studentsData = await getStudents();
+                const select = document.getElementById('student-select');
+                select.innerHTML = '<option value="">Select / منتخب کریں</option>' +
+                    studentsData.map(s => `<option value="${s.id}">${s.name_en} (${s.roll_no})</option>`).join('');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadStudentReport() {
+            clearMessages();
+            const studentId = document.getElementById('student-select').value;
+            if (!studentId) {
+                showError('Please select a student / براہ کرم طالب علم منتخب کریں');
+                return;
+            }
+
+            try {
+                const data = await getStudentReport(studentId);
+                const reportDiv = document.getElementById('student-report-content');
+
+                reportDiv.innerHTML = `
+                    <h3>${data.student.name_en} (Roll No: ${data.student.roll_no})</h3>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <h3>${data.summary.total}</h3>
+                            <p>Total Days / کل دن</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.summary.present}</h3>
+                            <p>Present / حاضر</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.summary.absent}</h3>
+                            <p>Absent / غائب</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.summary.late}</h3>
+                            <p>Late / دیر سے</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${data.summary.percentage}%</h3>
+                            <p>Attendance / حاضری</p>
+                        </div>
+                    </div>
+                    <h4>Recent Records / حالیہ ریکارڈ</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date / تاریخ</th>
+                                <th>Status / حیثیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.records.slice(0, 30).map(r => `
+                                <tr>
+                                    <td>${r.date}</td>
+                                    <td>${r.status}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadNotifications() {
+            try {
+                const status = document.getElementById('notification-filter').value || null;
+                const notifications = await getNotifications(status);
+
+                const tbody = document.querySelector('#notifications-table tbody');
+                tbody.innerHTML = notifications.map(n => `
+                    <tr>
+                        <td>${n.date}</td>
+                        <td>${n.student_name}</td>
+                        <td>${n.class_name}</td>
+                        <td>${n.status === 'pending' ? 'Pending / زیر التوا' : 'Sent / بھیجی گئی'}</td>
+                        <td>
+                            ${n.status === 'pending' ?
+                                `<button onclick="markAsSent(${n.id})">Send / بھیجیں</button>` :
+                                'Sent / بھیجی گئی'}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function markAsSent(notificationId) {
+            try {
+                await markNotificationSent(notificationId);
+                showSuccess('Notification marked as sent / اطلاع بھیجی گئی کے طور پر نشان زد');
+                loadNotifications();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function handleLogout() {
+            await logout();
+            window.location.href = '/login';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadDashboard();
+        });
+    </script>
+</body>
+</html>

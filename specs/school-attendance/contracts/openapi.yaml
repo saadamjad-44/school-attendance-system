@@ -1,0 +1,548 @@
+openapi: 3.0.3
+info:
+  title: School Attendance API
+  description: Bilingual school attendance management system API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  # Auth Endpoints
+  /api/login:
+    post:
+      summary: User login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/logout:
+    post:
+      summary: User logout
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Logout successful
+
+  /api/me:
+    get:
+      summary: Get current user
+      tags:
+        - Authentication
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  # Admin Endpoints
+  /api/admin/teachers:
+    get:
+      summary: List all teachers
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of teachers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Teacher'
+
+    post:
+      summary: Add new teacher
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+                - name_en
+                - class_id
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                name_en:
+                  type: string
+                name_ur:
+                  type: string
+                class_id:
+                  type: integer
+      responses:
+        '201':
+          description: Teacher created
+
+  /api/admin/teachers/{id}:
+    delete:
+      summary: Delete teacher
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Teacher deleted
+
+  /api/admin/students:
+    get:
+      summary: List students (optionally by class)
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: class_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+
+    post:
+      summary: Add new student
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name_en
+                - roll_no
+                - class_id
+              properties:
+                name_en:
+                  type: string
+                name_ur:
+                  type: string
+                roll_no:
+                  type: string
+                class_id:
+                  type: integer
+                parent_phone:
+                  type: string
+      responses:
+        '201':
+          description: Student created
+
+  /api/admin/students/{id}:
+    delete:
+      summary: Delete student
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Student deleted
+
+  /api/admin/classes:
+    get:
+      summary: List all classes
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of classes
+
+    post:
+      summary: Add new class
+      tags:
+        - Admin
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                name_ur:
+                  type: string
+      responses:
+        '201':
+          description: Class created
+
+  # Teacher Endpoints
+  /api/teacher/my-class:
+    get:
+      summary: Get assigned class students
+      tags:
+        - Teacher
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Class students with attendance
+
+  /api/teacher/attendance/{date}:
+    get:
+      summary: Get attendance for specific date
+      tags:
+        - Teacher
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Attendance records
+
+  /api/teacher/attendance:
+    post:
+      summary: Save attendance
+      tags:
+        - Teacher
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                records:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      student_id:
+                        type: integer
+                      status:
+                        type: string
+                        enum: [present, absent, late]
+      responses:
+        '200':
+          description: Attendance saved
+
+  /api/teacher/history:
+    get:
+      summary: Get 30-day attendance history
+      tags:
+        - Teacher
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Attendance history
+
+  # Principal Endpoints
+  /api/principal/dashboard:
+    get:
+      summary: Get daily dashboard
+      tags:
+        - Principal
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Daily attendance summary
+
+  /api/principal/report:
+    get:
+      summary: Get monthly report
+      tags:
+        - Principal
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: class_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Monthly report data
+
+  /api/principal/report/export:
+    get:
+      summary: Download Excel report
+      tags:
+        - Principal
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: class_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/principal/student/{student_id}:
+    get:
+      summary: Get student-wise report
+      tags:
+        - Principal
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Student attendance history
+
+  # Notifications
+  /api/notifications:
+    get:
+      summary: Get pending notifications
+      tags:
+        - Notifications
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent]
+      responses:
+        '200':
+          description: List of notifications
+
+  /api/notifications/{id}/send:
+    post:
+      summary: Mark notification as sent
+      tags:
+        - Notifications
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Notification marked as sent
+
+  # Static Pages
+  /:
+    get:
+      summary: Root redirect
+      responses:
+        '302':
+          description: Redirect to /login
+
+  /login:
+    get:
+      summary: Login page
+      responses:
+        '200':
+          description: Login HTML page
+
+  /teacher:
+    get:
+      summary: Teacher dashboard
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Teacher HTML page
+
+  /principal:
+    get:
+      summary: Principal dashboard
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Principal HTML page
+
+  /admin:
+    get:
+      summary: Admin panel
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Admin HTML page
+
+components:
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name_en:
+          type: string
+        name_ur:
+          type: string
+        role:
+          type: string
+          enum: [admin, principal, teacher]
+
+    Teacher:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name_en:
+          type: string
+        name_ur:
+          type: string
+        class_id:
+          type: integer
+        class_name:
+          type: string
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: integer
+        name_en:
+          type: string
+        name_ur:
+          type: string
+        roll_no:
+          type: string
+        class_id:
+          type: integer
+        parent_phone:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string

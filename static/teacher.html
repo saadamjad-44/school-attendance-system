@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard / استاد ڈیش بورڈ</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <h1>Teacher Dashboard / استاد ڈیش بورڈ</h1>
+            <div class="nav">
+                <button onclick="showSection('attendance')" class="active">Mark Attendance / حاضری لگائیں</button>
+                <button onclick="showSection('history')">History / تاریخ</button>
+                <button onclick="handleLogout()">Logout / لاگ آوٹ</button>
+            </div>
+            <p id="error" class="error"></p>
+            <p id="success" class="success"></p>
+        </div>
+
+        <!-- Attendance Section -->
+        <div id="attendance-section" class="section">
+            <h2>Mark Attendance / حاضری لگائیں</h2>
+            <div class="form-inline">
+                <div class="form-group">
+                    <label>Date / تاریخ</label>
+                    <input type="date" id="attendance-date" onchange="loadAttendanceForDate()">
+                </div>
+                <button onclick="saveAttendanceHandler()">Save Attendance / حاضری محفوظ کریں</button>
+            </div>
+            <div id="class-info">
+                <h3 id="class-name"></h3>
+            </div>
+            <table id="attendance-table">
+                <thead>
+                    <tr>
+                        <th>Roll No / رول نمبر</th>
+                        <th>Student Name / طالب علم کا نام</th>
+                        <th>Status / حیثیت</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- History Section -->
+        <div id="history-section" class="section" style="display:none;">
+            <h2>Attendance History (Last 30 Days) / حاضری کی تاریخ (آخری 30 دن)</h2>
+            <button onclick="loadHistory()">Refresh / تازہ کریں</button>
+            <div id="history-content"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        let currentSection = 'attendance';
+        let classData = null;
+        let studentsData = [];
+        let attendanceRecords = {};
+
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById(`${section}-section`).style.display = 'block';
+            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            currentSection = section;
+
+            if (section === 'attendance') loadMyClass();
+            else if (section === 'history') loadHistory();
+        }
+
+        async function loadMyClass() {
+            try {
+                const data = await getMyClass();
+                classData = data.class;
+                studentsData = data.students;
+
+                if (!classData) {
+                    showError('No class assigned / کوئی کلاس تفویض نہیں');
+                    return;
+                }
+
+                document.getElementById('class-name').textContent = `Class / کلاس: ${classData.name}`;
+
+                // Set today's date
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('attendance-date').value = today;
+
+                renderAttendanceTable();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function renderAttendanceTable() {
+            const tbody = document.querySelector('#attendance-table tbody');
+            tbody.innerHTML = studentsData.map(s => {
+                const status = s.status || 'present';
+                attendanceRecords[s.id] = status;
+
+                return `
+                    <tr>
+                        <td>${s.roll_no}</td>
+                        <td>${s.name_en}</td>
+                        <td>
+                            <div class="status-buttons">
+                                <button class="status-btn present ${status === 'present' ? 'selected' : ''}"
+                                        onclick="setStatus(${s.id}, 'present')">
+                                    Present / حاضر
+                                </button>
+                                <button class="status-btn absent ${status === 'absent' ? 'selected' : ''}"
+                                        onclick="setStatus(${s.id}, 'absent')">
+                                    Absent / غائب
+                                </button>
+                                <button class="status-btn late ${status === 'late' ? 'selected' : ''}"
+                                        onclick="setStatus(${s.id}, 'late')">
+                                    Late / دیر سے
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function setStatus(studentId, status) {
+            attendanceRecords[studentId] = status;
+
+            // Update UI
+            const row = event.target.closest('tr');
+            row.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+
+        async function loadAttendanceForDate() {
+            const date = document.getElementById('attendance-date').value;
+            if (!date) return;
+
+            try {
+                const data = await getAttendance(date);
+                studentsData = data.students;
+                renderAttendanceTable();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function saveAttendanceHandler() {
+            clearMessages();
+            const date = document.getElementById('attendance-date').value;
+
+            if (!date) {
+                showError('Please select a date / براہ کرم تاریخ منتخب کریں');
+                return;
+            }
+
+            const records = Object.entries(attendanceRecords).map(([student_id, status]) => ({
+                student_id: parseInt(student_id),
+                status
+            }));
+
+            try {
+                await saveAttendance(date, records);
+                showSuccess('Attendance saved successfully / حاضری کامیابی سے محفوظ ہو گئی');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const data = await getAttendanceHistory(30);
+                const historyDiv = document.getElementById('history-content');
+
+                if (!data.records || data.records.length === 0) {
+                    historyDiv.innerHTML = '<p>No history available / کوئی تاریخ دستیاب نہیں</p>';
+                    return;
+                }
+
+                // Group by student
+                const studentMap = {};
+                data.records.forEach(r => {
+                    if (!studentMap[r.id]) {
+                        studentMap[r.id] = {
+                            id: r.id,
+                            name: r.name_en,
+                            roll_no: r.roll_no,
+                            records: []
+                        };
+                    }
+                    if (r.date && r.status) {
+                        studentMap[r.id].records.push({ date: r.date, status: r.status });
+                    }
+                });
+
+                // Calculate absence counts
+                const students = Object.values(studentMap).map(s => {
+                    const absentCount = s.records.filter(r => r.status === 'absent').length;
+                    const lateCount = s.records.filter(r => r.status === 'late').length;
+                    return { ...s, absentCount, lateCount };
+                });
+
+                historyDiv.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Roll No / رول نمبر</th>
+                                <th>Name / نام</th>
+                                <th>Absent Days / غیر حاضر دن</th>
+                                <th>Late Days / دیر سے آنے والے دن</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${students.map(s => `
+                                <tr>
+                                    <td>${s.roll_no}</td>
+                                    <td>${s.name}</td>
+                                    <td>${s.absentCount}</td>
+                                    <td>${s.lateCount}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function handleLogout() {
+            await logout();
+            window.location.href = '/login';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadMyClass();
+        });
+    </script>
+</body>
+</html>
