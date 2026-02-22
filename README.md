@@ -2,6 +2,17 @@
 
 A bilingual (Urdu + English) school attendance management system for Pakistani schools. Teachers mark daily attendance, Principals view reports and download Excel, Admins manage users and classes.
 
+## 🌐 Live Demo
+
+**[View Live Demo](https://school-attendance-system--saadamjad4.replit.app)** 🚀
+
+**Demo Credentials:**
+- **Admin**: username=`admin`, password=`school123`
+- **Principal**: username=`principal`, password=`school123`
+- **Teacher**: username=`teacher1`, password=`school123`
+
+---
+
 ## Features
 
 ### Admin
